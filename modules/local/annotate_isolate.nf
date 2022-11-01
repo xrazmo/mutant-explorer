@@ -10,8 +10,7 @@ include { SPADES } from "$baseDir/modules/nf-core/spades/main"
     
     main:
        
-        paired_ch = input_ch.filter{it.seq_rep=='paired'}
-                                .map{it->[[id:it.sample.replace('.','-v-'),single_end:false],[it.file1,it.file2]]}
+        paired_ch = input_ch.map{it->[[id:it[0],single_end:false],it[1]]}
        
         
         TRIMGALORE(paired_ch)  

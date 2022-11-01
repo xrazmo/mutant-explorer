@@ -2,14 +2,24 @@ include { PRODIGAL } from "$baseDir/modules/nf-core/prodigal/main"
 include { DIAMOND_BLASTX } from "$baseDir/modules/nf-core/diamond/blastx/main"
 include { TRIMGALORE } from "$baseDir/modules/nf-core/trimgalore/main"
 include { SPADES } from "$baseDir/modules/nf-core/spades/main"
+include {CREATD_REF_DB} from "$baseDir/modules/local/utility"
+include {SAVE_TO_DB} from "$baseDir/modules/local/utility"
 
  workflow ANNOTATE_ISOLATES{
     take:
-        input_ch
+        input_gz
         data_dir
-    
+        replace_db
     main:
-       
+     
+        def ref_db = "${params.data_dir}/db.sqlite3"
+        def contigs_dir ="${params.data_dir}/contigs"
+        def protein_dir = "${params.data_dir}/orfs_aa"
+
+        input_ch = Channel.fromFilePairs("${input_gz}/*/*{1,2}.fastq.gz");
+
+        CREATD_REF_DB(ref_db,replace_db)
+        
         paired_ch = input_ch.map{it->[[id:it[0],single_end:false],it[1]]}
        
         
@@ -33,13 +43,20 @@ include { SPADES } from "$baseDir/modules/nf-core/spades/main"
 
         DIAMOND_BLASTX(diaParam.fasta,diaParam.db,diaParam.ext,diaParam.col)
         
+        ch_into_db =  PRODIGAL.out.gene_annotations.map{it->['orfs',it[0],it[1]]}
+                .concat(DIAMOND_BLASTX.out.txt.map{it->['annotations',it[0],it[1]]})
+
+        file(contigs_dir).mkdir()
+        SPADES.out.contigs.map{it-> it[1]}.flatten().collectFile(storeDir:contigs_dir)
+        
+        file(protein_dir).mkdir()
+        PRODIGAL.out.amino_acid_fasta.map{it-> it[1]}.flatten().collectFile(storeDir:protein_dir) 
+        
+        SAVE_TO_DB(ch_into_db,ref_db)
         
 
     emit:
-       contigs = SPADES.out.contigs
-       gene_annotations = PRODIGAL.out.gene_annotations
-       diamond_txt = DIAMOND_BLASTX.out.txt
-       nucleotide_fasta = PRODIGAL.out.nucleotide_fasta
-       amino_acid_fasta = PRODIGAL.out.amino_acid_fasta
-      
+       ref_db = ref_db
+       contigs_dir = contigs_dir
+       protein_dir = protein_dir
 }

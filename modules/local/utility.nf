@@ -27,6 +27,7 @@ process CREATD_REF_DB{
 }
 
 process SCAFFOLD_CONTIGS{
+    tag "$meta.id"
     label "vshort"
     input:
     tuple val(meta), path(contig), path(orfs_aa), path(db)

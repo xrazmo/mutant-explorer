@@ -6,22 +6,15 @@ import sqlite3 as lit
 from Bio.SeqFeature import SeqFeature, FeatureLocation 
 from Bio.Seq import Seq
 
-def get_genbank(sample,db,contig_dir,protein_dir):
-
-    contig_files = glob(os.path.join(contig_dir,f'*{sample}*.gz'))
-    if len(contig_files)<1:
-        return
-
-    protein_files = glob(os.path.join(protein_dir,f'*{sample}*.faa'))
-    proteins = {}
-    if len(protein_files)>0:
-        proteins = SeqIO.index(protein_files[0],'fasta')
-
+def get_genbank(sample,db,contig_f,protein_f):
     sep_len = 50
     scaffold = ''
     offset = 0
     contigs_offset = {} 
-    with gzip.open(contig_files[0],'rt') as hdl:
+    
+    proteins = SeqIO.index(protein_f,'fasta')
+
+    with gzip.open(contig_f,'rt') as hdl:
         for rec in SeqIO.parse(hdl,'fasta'):
             contigs_offset[rec.id] = offset
             scaffold = scaffold + str(rec.seq) + 'N'*sep_len
@@ -62,7 +55,7 @@ def get_genbank(sample,db,contig_dir,protein_dir):
 
     with open(f'{sample}.fa','w') as hdl:
         SeqIO.write(record,hdl,'fasta')
-        
+
 
 def __flatten_annotations(annot):
     dbs = ['nr','card','bacmet','vfdb']
@@ -102,8 +95,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--sample",required=True,help="name of the sample")
     parser.add_argument("--ann_db",required=True,help="SQLite DB containing all annotations")
-    parser.add_argument("--contig_dir",required=True,help="directory of genomes in fasta/gz format")
-    parser.add_argument("--protein_dir",required=True,help="directory of the predicted porteins")
+    parser.add_argument("--contig",required=True,help="fasta.gz containing contigs")
+    parser.add_argument("--protein",required=True,help="multifasta containing the predicted porteins")
     params = parser.parse_args()
 
-    get_genbank(params.sample,params.ann_db,params.contig_dir,params.protein_dir)
+    get_genbank(params.sample,params.ann_db,params.contig,params.protein)

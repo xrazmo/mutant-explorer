@@ -39,7 +39,7 @@ process SCAFFOLD_CONTIGS{
 
     script:
     """
-    python ./bin/prepare_ref_seqs.py --sample ${meta.id} --ann_db $db --contig_dir $contig --protein_dir $orfs_aa
+    python $baseDir/bin/prepare_ref_seqs.py --sample ${meta.id} --ann_db $db --contig $contig --protein $orfs_aa
     """
 }
 

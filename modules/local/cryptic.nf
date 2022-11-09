@@ -1,3 +1,48 @@
+ process INDEX_REFERENCE{
+    tag "$meta.id"
+    label 'process_medium'
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'https://github.com/iqbal-lab-org/clockwork/releases/download/v0.11.3/clockwork_v0.11.3.img':
+        'ghcr.io/iqbal-lab-org/clockwork:latest' }"
+    
+    input:
+    tuple val(meta), path(ref_fa)
+    val(out_dir)
+
+    output:
+    tuple val(meta), val("${out_dir}/${meta.id}")
+
+    script:
+    """
+    clockwork reference_prepare --outdir ./${meta.id} $ref_fa
+    cp -r ./${meta.id} $out_dir
+    """
+
+ }
+
+process FAKE_REMOVE_CONTAM{
+     tag "$meta.id"
+    label 'process_medium'
+    // errorStrategy 'ignore'
+
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'https://github.com/iqbal-lab-org/clockwork/releases/download/v0.11.3/clockwork_v0.11.3.img':
+        'ghcr.io/iqbal-lab-org/clockwork:latest' }"
+
+    input:
+    tuple val(meta), path(reads)
+
+    output:
+    tuple val(meta), path("*{1,2}.fq.gz"), emit: reads
+    tuple val(meta), path("*.counts.tsv"), emit: tsv
+
+    script:
+     def threads = task.cpus
+    """
+     clockwork fake_remove_contam ${reads[0]} ${reads[1]} ${meta.id}.fake_decontam_1.fq.gz ${meta.id}.fake_decontam_2.fq.gz ${meta.id}.fake_decontam.counts.tsv 
+    """
+}
+ 
  process map_reads {
     tag "$meta.id"
     label 'process_medium'
@@ -42,7 +87,7 @@ process remove_contam {
      clockwork remove_contam $ref_tsv $in_sam ${meta.id}.decontam.counts.tsv ${meta.id}.decontam_1.fq.gz ${meta.id}.decontam_2.fq.gz
     """
 }
-process variant_call {
+process VARIANT_CALL {
     tag "$meta.id"
     label 'process_medium'
    
@@ -51,9 +96,7 @@ process variant_call {
         'ghcr.io/iqbal-lab-org/clockwork:latest' }"
 
     input:
-    tuple val(meta), path(reads)
-    val h37Rv_dir
-       
+    tuple val(meta), path(reads), val(ref_dir)
 
     output:
     tuple val(meta), path("*final.vcf"), emit: final_vcf
@@ -63,7 +106,7 @@ process variant_call {
     script:
      
     """
-     clockwork variant_call_one_sample --sample_name ${meta.id} $h37Rv_dir var_call ${reads[0]} ${reads[1]}
+     clockwork variant_call_one_sample --sample_name ${meta.id} $ref_dir var_call ${reads[0]} ${reads[1]}
      cp ./var_call/final.vcf ${meta.id}.final.vcf
      cp ./var_call/samtools.vcf ${meta.id}.samtools.vcf
      cp ./var_call/cortex.vcf ${meta.id}.cortex.vcf
@@ -95,7 +138,7 @@ params.input_catalog = "${baseDir}/catalogues"
 def vcf_dir = "${baseDir}/out_vcf"
 def out_dir = "${baseDir}/out_csv"
 
-workflow{
+workflow TB{
 
    reads_ch = Channel.fromFilePairs("${params.input_gz}/*/*_{1,2}.fastq.gz").map{it->[[id:it[0]],it[1]]};
    ref_fa = Channel.fromPath("${params.ref_dir}/Ref.remove_contam/*.fa");

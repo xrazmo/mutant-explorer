@@ -1,144 +1,108 @@
 
-import getopt, os, sys, re
-import Gemucator as ge
+import getopt, os, sys
 import pandas as pd
+import sqlite3 as lit
 
-def parse_vcf(genbank,vcf):
-    ref_genome =  ge.gemucator(genbank_file=genbank)
-    mdf = pd.read_csv(vcf,sep='\t',header=0,skiprows=18)  
-    tmp_lst = []
+def parse_vcf(sample,refdb,vcf):
+   
+    orfs = __fetch_orfs(sample,refdb)
+    mdf = __vcf2df(vcf)    
+    tmp_lst= []
     for _,row in mdf.iterrows():
-        rlen = len(row["REF"])
-        alen = len(row["ALT"])
-        r = {}
-        
-        if(rlen==1 and alen==1):
-           r=ref_genome.identify_gene(row["POS"]-1,row["ALT"])
-           if(len(r)>0):
-            if r["ref_base"] == row["REF"].lower():
-                # coding region or promoter?
-                alt = [r['alt_residue'], row["ALT"].lower()][r["gene_pos"]<0]
-                r["grammar"] = f"{r['gene_name']}@{r['ref_residue']}{r['gene_pos']}{alt}"
-                r["grammar_nt"] = f"{r['gene_name']}@{row['REF'].lower()}{r['gene_pos']}{row['ALT'].lower()}"
-                r["genome_pos"]=row["POS"]
-            else:
-                print("ERROR: POINT")
-                print(row["POS"],r)
-                r={}
-        elif(rlen>alen):# Deletion
-            r = ref_genome.identify_gene(row["POS"]-1)
-            if(len(r)>0):
-                if r["ref_base"] == row["REF"][0].lower():
-                   r["grammar"] = f"{r['gene_name']}@{r['gene_pos']}_del_{row['REF'].lower()}"
-                   r["genome_pos"]=row["POS"]
-                    # print(row["POS"],grammar)       
-                else:
-                    print("ERROR:DEL")
-                    print(row["POS"],r)
-                    r={}
+        r = __locate_muation(row["#CHROM"],orfs,row["POS"])
+        r["contig_id"] = row["#CHROM"]
+        r["genome_position"] = row["POS"]
+        r["ref_nt"] = row["REF"]
+        r["alt_nt"] = row["ALT"]
+        r["filter"] = row["FILTER"]
+        tmp_lst.append(r)
 
-        elif(rlen<alen):# Insertion
-            r = ref_genome.identify_gene(row["POS"]-1)
-            
-            if(len(r)>0):
-                if r["ref_base"] == row["REF"].lower():
-                    r["grammar"] = f"{r['gene_name']}@{r['gene_pos']}_ins_{row['ALT'].lower()}"
-                    r["genome_pos"]=row["POS"]
-                    # print(row["POS"],grammar)       
-                else:
-                    print("ERROR:INS")
-                    print(row["POS"],r)
-                    r={}
-
-        if len(r)>0:
-           tmp_lst.append(r)     
-
-    sname = os.path.basename(vcf).split('.')[0]   
     df = pd.DataFrame(tmp_lst)
-    ofname = f'{sname}.grammars.csv'
+    sname = os.path.basename(vcf).split('.')[0]
+    ofname = f'{sname}.annotated_mutations.csv'
     df.to_csv(ofname)
     return ofname
 
-def parse_grammars(catalog,grammars):
+def __vcf2df(vcf):
+     # find the comments lines
+    comment_lines = 0
+    with open(vcf) as hdl:
+        for ll in hdl:    
+            if ll.startswith('##'):
+               comment_lines +=1
+            else:
+                break
 
-    cdf = pd.read_csv(catalog,header=0)
-    cdf["gene"] = cdf['MUTATION'].apply(lambda x:x.split('@')[0])
-    cataloged_genes = set(cdf["gene"].tolist())
-    
-    gdf = pd.read_csv(grammars,header=0,index_col=0)
-    gdf["gene"] = gdf['grammar'].apply(lambda x:x.split('@')[0])
-    gdf = gdf[gdf['gene'].isin(cataloged_genes)]
-   
-    for _,crow in cdf.iterrows():
-        grammars = crow["MUTATION"].split('&')
-        for gr in grammars:
-            cdec = decode(gr)
+    df = pd.read_csv(vcf,sep='\t',header=0,skiprows=comment_lines)
+    return df        
+
+def __fetch_orfs(sample,refdb):
+    conn = lit.connect(refdb)
+    cur = conn.cursor()
+
+    cmd = "select orfs.accession,start_index,end_index,strand,sseqid,stitle,pident,scov" \
+          " from orfs left join annotations as ann on orfs.accession = ann.orfs_accession" \
+          f" where ref_db = 'nr' and orfs.sample = '{sample}';"
+    orfs = {}
+    for ac,si,ei,snd,ss,st,pi,sc in cur.execute(cmd):
+        contig_id= '_'.join(ac.split('_')[0:-1])
+        if contig_id not in orfs:
+            orfs[contig_id] = []
+        ptr = orfs[contig_id]
+        ptr.append({"accession":ac,"sidx":si,"eidx":ei,
+                      "strand":snd,"sseqid":ss,"stitle":st,"pident":pi,"scov":sc})
+    conn.close()
+    return orfs
+
+def __locate_muation(id,orfs,pos):
+    if id not in orfs:
+        return {}
+    type = None
+    for orf in orfs[id]:
+        if orf["strand"] == '+':
+            if orf["sidx"]<= pos and orf["eidx"]>= pos: # CDS
+                type = 'CDS'
+            elif orf["sidx"]-100<= pos and  orf["sidx"]> pos: # promoter     
+                type = 'promoter'
+            ge_pos = pos - orf["sidx"] + 1  
+        else:
+            if orf["sidx"]<= pos and orf["eidx"]>= pos: # CDS
+                type = 'CDS'
+            elif orf["eidx"]+100 >= pos and  orf["eidx"]< pos: # promoter     
+                type = 'promoter' 
             
-            if(len(cdec)==0):
-                # print(gr,crow["PREDICTION"])
-                continue
+            ge_pos = orf["eidx"]-pos + 1 
 
-            for _,grow in gdf.iterrows():
-                gdec = decode(grow["grammar"])
-                if(len(gdec)==0): continue      
-                
-                if(verify(gdec,cdec)):
-                    print(gr,crow["PREDICTION"],grow["grammar"],crow["DRUG"])
+        if type != None:
+            return {**orf,**{"type":type,"gene_pos":ge_pos}}
 
-def decode(grammar):
-    out={}
-    patterns = {"mutation":'(.*)@([a-z|!]+)(-?[0-9]+)([a-z|!|\*|\-\*|\?|=]+)',
-                "indel1":  '(.*)@(-?[0-9]+)\_([del|ins]+)\_([a-z]+)',
-                "indel2": '(.*)@(-?[0-9|\*]+)\_([indel]+)' }
-
-    for t,ptr in patterns.items():
-        group = re.findall(ptr,grammar,flags=re.IGNORECASE)
-        if(len(group)>0):
-            if t=="mutation":
-                out["gene_name"], out["ref"], out["pos"], out["alt"] = group[0]
-                out["type"] = t
-            elif t=="indel1":
-              out["gene_name"], out["pos"], out["type"], out["indel_base"] = group[0]
-            elif t=="indel2":
-              out["gene_name"], out["pos"], out["type"] = group[0]
-    return out
-
-def verify(gdec,cdec):
-    if (gdec["gene_name"]== cdec["gene_name"] 
-        and gdec["pos"]== cdec["pos"]) :
-        if  gdec["type"]== cdec["type"] or (gdec["type"]!='mutation' and cdec["type"]=='indel'):
-
-            if gdec['type'] == "mutation" and (gdec["alt"] == cdec["alt"] or cdec["alt"] in ['?','*'] ):
-                return True
-            
-            # indels
-            #stop codons
-            #promoters
-
-    return False        
-            
+    return {}
 
 def main(argv):
-    catalog =None
-    genbank = None
+    sample =None
+    refdb = None
     vcf = None
     
     try:
-        opts, _ = getopt.getopt(argv, "c:g:v:",["catalog=","genbank=","vcf="])
+        opts, _ = getopt.getopt(argv, "p:d:v:",["parent=","database=","vcf="])
     except getopt.GetoptError:
         print(getopt.GetoptError.e)
         sys.exit(2)
 
     for opt, arg in opts:
-        if opt in ["--catalog","-c"]:
-            catalog = arg
-        if opt in ["--genbank","-g"]:
-            genbank = arg
+        if opt in ["--database","-d"]:
+            refdb = arg
         if opt in ["--vcf","-v"]:
             vcf = arg
+        if opt in ["--parent","-p"]:
+            sample = arg
     
-    grammars_csv = parse_vcf(genbank,vcf)
-    #parse_grammars(catalog,'ERR4810943.grammars.csv')
+    
+    parse_vcf(sample,refdb,vcf)
 
 if __name__ == '__main__':
-    main(sys.argv[1:])
+    # main(sys.argv[1:])
+    os.chdir("/crex/proj/snic2022-23-507/private/mutant/ref_dbs/out_vcf/")
+    df = pd.read_csv("../input_mutants.csv",header=0)
+    for _,row in df.iterrows():
+        parse_vcf(row["parent"],"../db.sqlite3",f"{row['id']}.final.vcf")

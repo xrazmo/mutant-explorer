@@ -56,7 +56,6 @@ def get_genbank(sample,db,contig_f,protein_f):
     with open(f'{sample}.fa','w') as hdl:
         SeqIO.write(record,hdl,'fasta')
 
-
 def __flatten_annotations(annot):
     dbs = ['nr','card','bacmet','vfdb']
     annot_list = []
@@ -89,6 +88,15 @@ def __fetch_features(sample,db):
         if r not in ptr:
             ptr[r] = {'ref_db':r,'identity':pi,"coverage":sc,'product':sti,"protein_id":sid}
     return orfs
+
+def extract_contigs(sample,contig_f):
+    records_list = []
+    with gzip.open(contig_f,'rt') as hdl:
+        for rec in SeqIO.parse(hdl,'fasta'):
+            records_list.append(rec)
+
+    with open(f"{sample}.fa","w") as hdl:
+         SeqIO.write(records_list,hdl,'fasta')
 
 if __name__ == "__main__":
 

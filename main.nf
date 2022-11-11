@@ -1,7 +1,7 @@
 nextflow.enable.dsl=2
 
 include {ANNOTATE_ISOLATES} from "$baseDir/modules/local/annotate_isolate"
-include {SCAFFOLD_CONTIGS} from "$baseDir/modules/local/utility"
+include {EXTRACT_CONTIGS} from "$baseDir/modules/local/utility"
 include {INDEX_REFERENCE} from "$baseDir/modules/local/cryptic"
 include {FAKE_REMOVE_CONTAM} from "$baseDir/modules/local/cryptic"
 include {VARIANT_CALL} from "$baseDir/modules/local/cryptic"
@@ -23,20 +23,22 @@ workflow{
     def refgbk_dir = "${params.data_dir}/ref_gbk"
     def vcf_dir = "${params.data_dir}/out_vcf"
 
+    // file(refgbk_dir).mkdir()
+
     file(reffa_dir).mkdir()
-    file(refgbk_dir).mkdir()
     file(vcf_dir).mkdir()
 
     // SCAFFOLD_CONTIGS.out.fa.map{it-> it[1]}.flatten().collectFile(storeDir:reffa_dir) 
     // SCAFFOLD_CONTIGS.out.gbk.map{it-> it[1]}.flatten().collectFile(storeDir:refgbk_dir) 
 
-    // INDEX_REFERENCE(SCAFFOLD_CONTIGS.out.fa,reffa_dir)
+    // EXTRACT_CONTIGS(contigs_ch)
+    // INDEX_REFERENCE(EXTRACT_CONTIGS.out.fa,reffa_dir)
+   
+
     ref_dir_ch = Channel.fromPath("${reffa_dir}/*/*.fai").map{it->[it.parent.name,it.parent]}
     mutant_ch = Channel.fromPath("${params.mutant_csv}").splitCsv(header: true).map{it -> [[id:it.id,parent:it.parent],[it.read_1,it.read_2]]}
     FAKE_REMOVE_CONTAM(mutant_ch)
     decomp_ch = FAKE_REMOVE_CONTAM.out.reads.map{it-> [it[0].parent,it[0],it[1]]}.join(ref_dir_ch).map{it->[it[1],it[2],it[3]]}
     VARIANT_CALL(decomp_ch)
     VARIANT_CALL.out.final_vcf.map{it-> it[1]}.flatten().collectFile(storeDir:vcf_dir)
-
-
 }

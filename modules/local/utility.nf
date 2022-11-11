@@ -43,3 +43,23 @@ process SCAFFOLD_CONTIGS{
     """
 }
 
+process EXTRACT_CONTIGS{
+     tag "$meta.id"
+    label "vshort"
+
+    conda (params.enable_conda ? 'bioconda::pigz=2.6' : null)
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'https://depot.galaxyproject.org/singularity/pigz%3A2.3.4' : 
+        'quay.io/biocontainers/pigz' }"
+        
+    input:
+    tuple val(meta), path(contig)
+
+    output:
+    tuple val(meta), path("*.fa"), emit: fa
+
+    script:
+    """
+    pigz -df $contig
+    """
+}

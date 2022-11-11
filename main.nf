@@ -6,11 +6,18 @@ include {INDEX_REFERENCE} from "$baseDir/modules/local/cryptic"
 include {FAKE_REMOVE_CONTAM} from "$baseDir/modules/local/cryptic"
 include {VARIANT_CALL} from "$baseDir/modules/local/cryptic"
 
+include {SNP_CALL} from "$baseDir/modules/local/snp_calling"
+include {ANNOTATE_VCF} from "$baseDir/modules/local/utility"
+
+
 params.data_dir = ""
-params.parent_gz = ""
 params.mutant_csv = ""
 
-workflow{
+// DELETE
+params.parent_gz = ""
+
+
+workflow Cryptic{
 
     // ANNOTATE_ISOLATES(parent_gz,params.data_dir,True)
     contigs_ch = Channel.fromPath("${params.data_dir}/contigs/*.gz").map{it->[[id:it.simpleName],it]}
@@ -41,4 +48,24 @@ workflow{
     decomp_ch = FAKE_REMOVE_CONTAM.out.reads.map{it-> [it[0].parent,it[0],it[1]]}.join(ref_dir_ch).map{it->[it[1],it[2],it[3]]}
     VARIANT_CALL(decomp_ch)
     VARIANT_CALL.out.final_vcf.map{it-> it[1]}.flatten().collectFile(storeDir:vcf_dir)
+}
+
+
+
+workflow{
+
+    db_ch = Channel.fromPath("${params.data_dir}/db.sqlite3")
+
+    mutant_ch = Channel.fromPath("${params.mutant_csv}")
+                .splitCsv(header: true)
+                .map{it -> [[id:it.child,parent:it.parent],[it.c_read_1,it.c_read_2],it.p_fa]}
+
+    SNP_CALL(mutant_ch,params.data_dir)
+    ANNOTATE_VCF(SNP_CALL.out.vcf.combine(db_ch))
+    
+    def vcf_dir = "${params.data_dir}/out_vcf"
+    file(vcf_dir).mkdir()
+
+    SNP_CALL.out.vcf.map{it-> it[1]}.flatten().collectFile(storeDir:vcf_dir)
+    ANNOTATE_VCF.out.csv.map{it-> it[1]}.flatten().collectFile(storeDir:vcf_dir)
 }

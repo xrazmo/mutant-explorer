@@ -63,3 +63,18 @@ process EXTRACT_CONTIGS{
     pigz -df $contig
     """
 }
+
+process ANNOTATE_VCF{
+    tag "$meta.id"
+    label "vshort"
+    input:
+    tuple val(meta), path(vcf), path(db)
+
+    output:
+    tuple val(meta), path("*.csv"), emit: csv
+
+    script:
+    """
+    python $baseDir/bin/vcf_parser.py --parent ${meta.parent} --database $db --vcf $vcf
+    """
+}

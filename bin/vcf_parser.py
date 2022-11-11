@@ -6,12 +6,15 @@ import sqlite3 as lit
 def parse_vcf(sample,refdb,vcf):
    
     orfs = __fetch_orfs(sample,refdb)
-    mdf = __vcf2df(vcf)    
-    tmp_lst= []
+    mdf = __vcf2df(vcf)   
+    col_order = ["contig_id","position_contig","ref_nt","alt_nt","filter","type",
+                 "orf_id","sidx","eidx","strand","position_gene","sseqid","stitle"
+                 ,"pident","scov"] 
+    tmp_lst= [{c:None for c in col_order}]
     for _,row in mdf.iterrows():
         r = __locate_muation(row["#CHROM"],orfs,row["POS"])
         r["contig_id"] = row["#CHROM"]
-        r["genome_position"] = row["POS"]
+        r["position_contig"] = row["POS"]
         r["ref_nt"] = row["REF"]
         r["alt_nt"] = row["ALT"]
         r["filter"] = row["FILTER"]
@@ -20,6 +23,8 @@ def parse_vcf(sample,refdb,vcf):
     df = pd.DataFrame(tmp_lst)
     sname = os.path.basename(vcf).split('.')[0]
     ofname = f'{sname}.annotated_mutations.csv'
+  
+    df = df[col_order]
     df.to_csv(ofname)
     return ofname
 
@@ -49,34 +54,35 @@ def __fetch_orfs(sample,refdb):
         if contig_id not in orfs:
             orfs[contig_id] = []
         ptr = orfs[contig_id]
-        ptr.append({"accession":ac,"sidx":si,"eidx":ei,
+        st = st.replace(ss,'').strip()
+        ptr.append({"orf_id":ac,"sidx":si,"eidx":ei,
                       "strand":snd,"sseqid":ss,"stitle":st,"pident":pi,"scov":sc})
     conn.close()
     return orfs
 
 def __locate_muation(id,orfs,pos):
     if id not in orfs:
-        return {}
+        return {"type":"no_ORFs"}
     type = None
     for orf in orfs[id]:
         if orf["strand"] == '+':
             if orf["sidx"]<= pos and orf["eidx"]>= pos: # CDS
-                type = 'CDS'
+                type = 'coding_region'
             elif orf["sidx"]-100<= pos and  orf["sidx"]> pos: # promoter     
                 type = 'promoter'
             ge_pos = pos - orf["sidx"] + 1  
         else:
             if orf["sidx"]<= pos and orf["eidx"]>= pos: # CDS
-                type = 'CDS'
+                type = 'coding_region'
             elif orf["eidx"]+100 >= pos and  orf["eidx"]< pos: # promoter     
                 type = 'promoter' 
             
             ge_pos = orf["eidx"]-pos + 1 
 
         if type != None:
-            return {**orf,**{"type":type,"gene_pos":ge_pos}}
+            return {**orf,**{"type":type,"position_gene":ge_pos}}
 
-    return {}
+    return {"type":"other"}
 
 def main(argv):
     sample =None
@@ -101,8 +107,8 @@ def main(argv):
     parse_vcf(sample,refdb,vcf)
 
 if __name__ == '__main__':
-    # main(sys.argv[1:])
-    os.chdir("/crex/proj/snic2022-23-507/private/mutant/ref_dbs/out_vcf/")
-    df = pd.read_csv("../input_mutants.csv",header=0)
-    for _,row in df.iterrows():
-        parse_vcf(row["parent"],"../db.sqlite3",f"{row['id']}.final.vcf")
+    main(sys.argv[1:])
+    # os.chdir("/crex/proj/snic2022-23-507/private/mutant/ref_dbs/out_vcf/")
+    # df = pd.read_csv("../input_mutants_test.csv",header=0)
+    # for _,row in df.iterrows():
+    #     parse_vcf(row["parent"],"../db.sqlite3",f"{row['child']}.vcf")

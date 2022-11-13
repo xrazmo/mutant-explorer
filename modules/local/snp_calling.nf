@@ -1,7 +1,7 @@
-include { BOWTIE2_BUILD } from "$baseDir/modules/nf-core/bowtie2/build/main"
-include { SAMTOOLS_FAIDX } from "$baseDir/modules/nf-core/samtools/faidx/main"
-include { BOWTIE2_ALIGN } from "$baseDir/modules/nf-core/bowtie2/align/main"
-include { EXTRACT_CONTIGS } from "$baseDir/modules/local/utility"
+include { BOWTIE2_BUILD as bwb } from "$baseDir/modules/nf-core/bowtie2/build/main"
+include { SAMTOOLS_FAIDX as smf } from "$baseDir/modules/nf-core/samtools/faidx/main"
+include { BOWTIE2_ALIGN as align} from "$baseDir/modules/nf-core/bowtie2/align/main"
+include { EXTRACT_CONTIGS as eco} from "$baseDir/modules/local/utility"
 
 
 process BCFTOOLS_MPILEUP {
@@ -37,13 +37,13 @@ workflow SNP_CALL{
         ref_ch = parent_child_ch.map{it->[[id:it[0].parent],it[2]]}
         mutant_ch = parent_child_ch.map{it->[[id:it[0].id,parent:it[0].parent,single_end:false],it[1]]}
 
-        BOWTIE2_BUILD(ref_ch)
-        EXTRACT_CONTIGS(ref_ch)
-        SAMTOOLS_FAIDX(EXTRACT_CONTIGS.out.fa)
-        BOWTIE2_ALIGN(mutant_ch, BOWTIE2_BUILD.out.index, false, true)
+        bwb(ref_ch)
+        eco(ref_ch)
+        smf(eco.out.fa)
+        align(mutant_ch, bwb.out.index, false, true)
 
-        ref_indexed_ch = EXTRACT_CONTIGS.out.fa.join(SAMTOOLS_FAIDX.out.fai)
-        bam_ch = BOWTIE2_ALIGN.out.bam.map{it->[it[0].parent,it[0],it[1]]}
+        ref_indexed_ch = eco.out.fa.join(smf.out.fai)
+        bam_ch = align.out.bam.map{it->[it[0].parent,it[0],it[1]]}
                                   .join(ref_indexed_ch.map{it-> [it[0].id,[it[1],it[2]]]}).map{it->[it[1],it[2],it[3]]}
         // bam_ch.view()
         BCFTOOLS_MPILEUP(bam_ch)

@@ -52,7 +52,8 @@ workflow Cryptic{
 
 workflow annotate{
 
-    ANNOTATE_ISOLATES(params.parent_gz,params.data_dir,true) 
+    // ANNOTATE_ISOLATES(params.parent_gz,params.data_dir,true) 
+    
 }
 
 workflow snp{

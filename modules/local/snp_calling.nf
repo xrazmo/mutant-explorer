@@ -39,22 +39,25 @@ workflow SNP_CALL{
         mutant_ch = parent_child_ch.map{it->[[id:it[0].id,parent:it[0].parent,single_end:false],it[1]]}
 
         BOWTIE2_BUILD(ref_ch)
-        // EXTRACT_CONTIGS(ref_ch)
-        // SAMTOOLS_FAIDX(EXTRACT_CONTIGS.out.fa)
+        EXTRACT_CONTIGS(ref_ch)
+        SAMTOOLS_FAIDX(EXTRACT_CONTIGS.out.fa)
         indexed_ch = BOWTIE2_BUILD.out.index
-        mutant_ch.map{it->[it[0].parent,it[0],it[1]]}.join(indexed_ch.map{it->[it[0].id,it[1]]}).view()
-        // TRIMGALORE(mutant_ch) 
+       
+        TRIMGALORE(mutant_ch) 
 
-    //     BOWTIE2_ALIGN(TRIMGALORE.out.reads, BOWTIE2_BUILD.out.index, false, true)
+        align_ch = TRIMGALORE.out.reads.map{it->[it[0].parent,it[0],it[1]]}
+                             .join(indexed_ch.map{it->[it[0].id,it[1]]}).map{it->[it[1],it[2],it[3]]}
 
-    //     ref_indexed_ch = EXTRACT_CONTIGS.out.fa.join(SAMTOOLS_FAIDX.out.fai)
-    //     bam_ch = BOWTIE2_ALIGN.out.bam.map{it->[it[0].parent,it[0],it[1]]}
-    //                               .join(ref_indexed_ch.map{it-> [it[0].id,[it[1],it[2]]]}).map{it->[it[1],it[2],it[3]]}
-    //     // bam_ch.view()
-    //     BCFTOOLS_MPILEUP(bam_ch)
+        BOWTIE2_ALIGN(align_ch, false, true)
+
+        ref_indexed_ch = EXTRACT_CONTIGS.out.fa.join(SAMTOOLS_FAIDX.out.fai)
+        bam_ch = BOWTIE2_ALIGN.out.bam.map{it->[it[0].parent,it[0],it[1]]}
+                                  .join(ref_indexed_ch.map{it-> [it[0].id,[it[1],it[2]]]}).map{it->[it[1],it[2],it[3]]}
+        // bam_ch.view()
+        BCFTOOLS_MPILEUP(bam_ch)
 
     emit:
-        // vcf = BCFTOOLS_MPILEUP.out.vcf
-        vcf = BOWTIE2_BUILD.out.index
+        vcf = BCFTOOLS_MPILEUP.out.vcf
+        
 
 }

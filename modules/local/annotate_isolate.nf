@@ -14,9 +14,9 @@ include {SAVE_TO_DB} from "$baseDir/modules/local/utility"
      
         def ref_db = "${params.data_dir}/db.sqlite3"
         def contigs_dir ="${params.data_dir}/contigs"
-        def protein_dir = "${params.data_dir}/orfs_aa"
+        def orfs_dir = "${params.data_dir}/orfs_dir"
 
-        input_ch = Channel.fromFilePairs("${input_gz}/*/*{1,2}.fastq.gz");
+        input_ch = Channel.fromFilePairs("${input_gz}/*/*/*{1,2}.fastq.gz");
 
         CREATD_REF_DB(ref_db,replace_db)
         
@@ -49,14 +49,10 @@ include {SAVE_TO_DB} from "$baseDir/modules/local/utility"
         file(contigs_dir).mkdir()
         SPADES.out.contigs.map{it-> it[1]}.flatten().collectFile(storeDir:contigs_dir)
         
-        file(protein_dir).mkdir()
-        PRODIGAL.out.amino_acid_fasta.map{it-> it[1]}.flatten().collectFile(storeDir:protein_dir) 
+        file(orfs_dir).mkdir()
+        PRODIGAL.out.amino_acid_fasta.map{it-> it[1]}.flatten().collectFile(storeDir:orfs_dir) 
+        PRODIGAL.out.nucleotide_fasta.map{it-> it[1]}.flatten().collectFile(storeDir:orfs_dir) 
         
         SAVE_TO_DB(ch_into_db,ref_db)
         
-
-    emit:
-       ref_db = ref_db
-       contigs_dir = contigs_dir
-       protein_dir = protein_dir
 }

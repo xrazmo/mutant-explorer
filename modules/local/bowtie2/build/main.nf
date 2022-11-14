@@ -11,7 +11,7 @@ process BOWTIE2_BUILD {
     tuple val(meta), path(fasta)
 
     output:
-    tuple val(meta), path('bowtie2')    , emit: index
+    tuple val(meta), path('*_indexed')    , emit: index
     path "versions.yml"                 , emit: versions
 
     when:
@@ -19,9 +19,10 @@ process BOWTIE2_BUILD {
 
     script:
     def args = task.ext.args ?: ''
+    def indexed_dir = "${fasta.simpleName}_indexed"
     """
-    mkdir bowtie2
-    bowtie2-build $args --threads $task.cpus $fasta bowtie2/${fasta.simpleName}
+    mkdir $indexed_dir
+    bowtie2-build $args --threads $task.cpus $fasta $indexed_dir/${fasta.simpleName}
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         bowtie2: \$(echo \$(bowtie2 --version 2>&1) | sed 's/^.*bowtie2-align-s version //; s/ .*\$//')

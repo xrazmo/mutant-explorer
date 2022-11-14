@@ -50,9 +50,12 @@ workflow Cryptic{
     VARIANT_CALL.out.final_vcf.map{it-> it[1]}.flatten().collectFile(storeDir:vcf_dir)
 }
 
+workflow annotate{
 
+    ANNOTATE_ISOLATES(params.parent_gz,params.data_dir,true) 
+}
 
-workflow{
+workflow snp{
 
     db_ch = Channel.fromPath("${params.data_dir}/db.sqlite3")
 

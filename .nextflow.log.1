@@ -1,0 +1,8 @@
+Nov-11 13:26:08.281 [main] DEBUG nextflow.cli.Launcher - $> nextflow run ../script/mutant-explorer/main.nf -profile uppmax_inter -w /crex/proj/snic2022-23-507/private/mutant/.tmp/work --data_dir /crex/proj/snic2022-23-507/private/mutant/ref_dbs --input_gz ../raw_seq/parent/ --mutant_csv ../ref_dbs/input_mutants_test.csv -resume
+Nov-11 13:26:08.374 [main] INFO  nextflow.cli.CmdRun - N E X T F L O W  ~  version 22.04.5
+Nov-11 13:26:08.424 [main] DEBUG nextflow.cli.Launcher - Operation aborted
+nextflow.exception.AbortOperationException: Cannot find script file: ../script/mutant-explorer/main.nf
+	at nextflow.cli.CmdRun.getScriptFile(CmdRun.groovy:419)
+	at nextflow.cli.CmdRun.run(CmdRun.groovy:287)
+	at nextflow.cli.Launcher.run(Launcher.groovy:480)
+	at nextflow.cli.Launcher.main(Launcher.groovy:639)

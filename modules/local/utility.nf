@@ -78,3 +78,32 @@ process ANNOTATE_VCF{
     python $baseDir/bin/vcf_parser.py --parent ${meta.parent} --database $db --vcf $vcf
     """
 }
+
+process MERGE_GENES{
+    tag "merge-genes"
+    label "vshort"
+
+    input:
+    tuple path(gene_dir)
+
+    output:
+    tuple path("*.fasta"), emit: fasta
+
+    script:
+    """
+    python $baseDir/bin/mmseqs_handler.py --task merge --fasta_dir $gene_dir
+    """
+}
+
+process SAVE_CLUSTERS{
+    tag "save_clusters"
+    
+    input:
+     tuple val(meta), path(tsv), path(db)
+
+    
+    script:
+    """
+    python $baseDir/bin/mmseqs_handler.py --task save --labels $tsv --database $db
+    """
+}

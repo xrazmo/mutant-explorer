@@ -7,7 +7,10 @@ include {FAKE_REMOVE_CONTAM} from "$baseDir/modules/local/cryptic"
 include {VARIANT_CALL} from "$baseDir/modules/local/cryptic"
 
 include {SNP_CALL} from "$baseDir/modules/local/snp_calling"
+include {MMSEQS_CLUSTERNT} from "$baseDir/modules/local/mmseqs"
 include {ANNOTATE_VCF} from "$baseDir/modules/local/utility"
+include {MERGE_GENES} from "$baseDir/modules/local/utility"
+include {SAVE_CLUSTERS} from "$baseDir/modules/local/utility"
 
 
 params.data_dir = ""
@@ -53,7 +56,12 @@ workflow Cryptic{
 workflow annotate{
 
     // ANNOTATE_ISOLATES(params.parent_gz,params.data_dir,true) 
-    
+    def orfs_dir = "${params.data_dir}/orfs_dir"
+    db_ch = Channel.fromPath("${params.data_dir}/db.sqlite3")
+
+    MERGE_GENES(orfs_dir)
+    MMSEQS_CLUSTERNT(MERGE_GENES.out.fasta.map{it->[[id:it.simpleName],it]},'easy-cluster',0.90)
+    SAVE_CLUSTERS(MMSEQS_CLUSTERNT.out.tsv.combine(db_ch))
 }
 
 workflow snp{

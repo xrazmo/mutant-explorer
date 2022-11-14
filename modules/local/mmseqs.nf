@@ -12,25 +12,23 @@
         val method
         val similarity
     output:
-    tuple val(meta), path('*.mmseqs.lbl.tsv'),  emit: lbls
+    tuple val(meta), path('*.tsv'),  emit: tsv
 
     script:
     def args = task.ext.args ?: ''
-    def dbname = "${meta.id}.db"
-    def clustname = "${meta.id}.clust"
+    def dbname = "${meta.id}_db"
+    def clustname = "${meta.id}_clust"
     def mem = task.memory.toGiga()
     def label_f = "${meta.id}.mmseqs.lbl.tsv"
     """
-    mmseqs createdb $genes_fa $dbname
     mmseqs \\
             $method \\
-            $dbname \\
+            $genes_fa \\
             $clustname \\
-            tmp
+            tmp \\
             $args \\
             --min-seq-id $similarity \\
             --threads $task.cpus \\
-            --split-memory-limit $mem \\
-    mmseqs createtsv $dbname $dbname $clustname $label_f   
+            --split-memory-limit ${mem}G \\
     """
  }

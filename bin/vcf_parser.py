@@ -9,7 +9,7 @@ def parse_vcf(sample,refdb,vcf):
     mdf = __vcf2df(vcf)   
     col_order = ["contig_id","position_contig","ref_nt","alt_nt","filter","type",
                  "orf_id","sidx","eidx","strand","position_gene","sseqid","stitle"
-                 ,"pident","scov"] 
+                 ,"pident","scov","cluster"] 
     tmp_lst= [{c:None for c in col_order}]
     for _,row in mdf.iterrows():
         r = __locate_muation(row["#CHROM"],orfs,row["POS"])
@@ -45,17 +45,17 @@ def __fetch_orfs(sample,refdb):
     conn = lit.connect(refdb)
     cur = conn.cursor()
 
-    cmd = "select orfs.accession,start_index,end_index,strand,sseqid,stitle,pident,scov" \
+    cmd = "select orfs.accession,start_index,end_index,strand,sseqid,stitle,pident,scov,cluster" \
           " from orfs left join annotations as ann on orfs.accession = ann.orfs_accession" \
           f" where ref_db = 'nr' and orfs.sample = '{sample}';"
     orfs = {}
-    for ac,si,ei,snd,ss,st,pi,sc in cur.execute(cmd):
+    for ac,si,ei,snd,ss,st,pi,sc,cl in cur.execute(cmd):
         contig_id= '_'.join(ac.split('_')[0:-1])
         if contig_id not in orfs:
             orfs[contig_id] = []
         ptr = orfs[contig_id]
         st = st.replace(ss,'').strip()
-        ptr.append({"orf_id":ac,"sidx":si,"eidx":ei,
+        ptr.append({"orf_id":ac,"sidx":si,"eidx":ei,"cluster":cl,
                       "strand":snd,"sseqid":ss,"stitle":st,"pident":pi,"scov":sc})
     conn.close()
     return orfs

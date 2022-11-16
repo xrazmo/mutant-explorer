@@ -23,7 +23,7 @@ workflow cryptic_index{
 
     ref_ch = Channel.fromPath("${params.mutant_csv}")
                 .splitCsv(header: true)
-                .map{it -> [[id:it.parent],it.p_fa]}
+                .map{it -> [[id:it.parent],it.p_fa]}.unique().view()
    
     def reffa_dir = "${params.data_dir}/ref_fa"
     file(reffa_dir).mkdir()
@@ -42,16 +42,41 @@ workflow cryptic_snp{
 
     ref_dir_ch = Channel.fromPath("${reffa_dir}/*/*.fai").map{it->[it.parent.name,it.parent]}
     mutant_ch = Channel.fromPath("${params.mutant_csv}").splitCsv(header: true).map{it -> [[id:it.child,parent:it.parent],[it.c_read_1,it.c_read_2]]}
-    
+ 
     FAKE_REMOVE_CONTAM(mutant_ch)
     
-    decomp_ch = FAKE_REMOVE_CONTAM.out.reads.map{it-> [it[0].parent,it[0],it[1]]}.join(ref_dir_ch).map{it->[it[1],it[2],it[3]]}
+    decomp_ch = FAKE_REMOVE_CONTAM.out.reads.map{it-> [it[0].parent,it[0],it[1]]}
+                                  .join(ref_dir_ch).map{it->[it[1],it[2],it[3]]}
     
     VARIANT_CALL(decomp_ch)
     ANNOTATE_VCF(VARIANT_CALL.out.final_vcf.combine(db_ch))
 
     VARIANT_CALL.out.final_vcf.map{it-> it[1]}.flatten().collectFile(storeDir:vcf_dir)
     ANNOTATE_VCF.out.csv.map{it-> it[1]}.flatten().collectFile(storeDir:vcf_dir)
+}
+
+workflow cryptic_snp_single_ref{
+
+    db_ch = Channel.fromPath("${params.data_dir}/db.sqlite3")
+    def reffa_dir = "${params.data_dir}/ref_fa"
+    def vcf_dir = "${params.data_dir}/out_vcf/cryptic_CP009072"
+    file(vcf_dir).mkdir()
+
+
+    ref_dir_ch = Channel.fromPath("${reffa_dir}/CP009072_1/*.fai").map{it->it.parent}
+    mutant_ch = Channel.fromPath("${params.mutant_csv}")
+                        .splitCsv(header: true)
+                        .map{it -> [[id:it.child,parent:it.parent],[it.c_read_1,it.c_read_2]]}
+ 
+    FAKE_REMOVE_CONTAM(mutant_ch)
+    
+    decomp_ch = FAKE_REMOVE_CONTAM.out.reads.combine(ref_dir_ch)
+    decomp_ch.view()
+    VARIANT_CALL(decomp_ch)
+    // ANNOTATE_VCF(VARIANT_CALL.out.final_vcf.combine(db_ch))
+
+    VARIANT_CALL.out.final_vcf.map{it-> it[1]}.flatten().collectFile(storeDir:vcf_dir)
+    // ANNOTATE_VCF.out.csv.map{it-> it[1]}.flatten().collectFile(storeDir:vcf_dir)
 }
 
 workflow annotate{

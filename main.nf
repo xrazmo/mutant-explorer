@@ -19,38 +19,39 @@ params.mutant_csv = ""
 // DELETE
 params.parent_gz = ""
 
+workflow cryptic_index{
 
-workflow Cryptic{
-
-    // ANNOTATE_ISOLATES(parent_gz,params.data_dir,True)
-    contigs_ch = Channel.fromPath("${params.data_dir}/contigs/*.gz").map{it->[[id:it.simpleName],it]}
-    proteins_ch = Channel.fromPath("${params.data_dir}/orfs_aa/*.faa").map{it->[[id:it.simpleName],it]}
-    db_ch = Channel.fromPath("${params.data_dir}/db.sqlite3")
-    
-    // SCAFFOLD_CONTIGS(contigs_ch.join(proteins_ch).combine(db_ch))
+    ref_ch = Channel.fromPath("${params.mutant_csv}")
+                .splitCsv(header: true)
+                .map{it -> [[id:it.parent],it.p_fa]}
    
     def reffa_dir = "${params.data_dir}/ref_fa"
-    def refgbk_dir = "${params.data_dir}/ref_gbk"
-    def vcf_dir = "${params.data_dir}/out_vcf"
-
-    // file(refgbk_dir).mkdir()
-
     file(reffa_dir).mkdir()
+   
+    EXTRACT_CONTIGS(ref_ch)
+    INDEX_REFERENCE(EXTRACT_CONTIGS.out.fa,reffa_dir)
+}
+
+workflow cryptic_snp{
+
+    db_ch = Channel.fromPath("${params.data_dir}/db.sqlite3")
+    def reffa_dir = "${params.data_dir}/ref_fa"
+    def vcf_dir = "${params.data_dir}/out_vcf/cryptic"
     file(vcf_dir).mkdir()
 
-    // SCAFFOLD_CONTIGS.out.fa.map{it-> it[1]}.flatten().collectFile(storeDir:reffa_dir) 
-    // SCAFFOLD_CONTIGS.out.gbk.map{it-> it[1]}.flatten().collectFile(storeDir:refgbk_dir) 
-
-    // EXTRACT_CONTIGS(contigs_ch)
-    // INDEX_REFERENCE(EXTRACT_CONTIGS.out.fa,reffa_dir)
-   
 
     ref_dir_ch = Channel.fromPath("${reffa_dir}/*/*.fai").map{it->[it.parent.name,it.parent]}
-    mutant_ch = Channel.fromPath("${params.mutant_csv}").splitCsv(header: true).map{it -> [[id:it.id,parent:it.parent],[it.read_1,it.read_2]]}
+    mutant_ch = Channel.fromPath("${params.mutant_csv}").splitCsv(header: true).map{it -> [[id:it.child,parent:it.parent],[it.c_read_1,it.c_read_2]]}
+    
     FAKE_REMOVE_CONTAM(mutant_ch)
+    
     decomp_ch = FAKE_REMOVE_CONTAM.out.reads.map{it-> [it[0].parent,it[0],it[1]]}.join(ref_dir_ch).map{it->[it[1],it[2],it[3]]}
+    
     VARIANT_CALL(decomp_ch)
+    ANNOTATE_VCF(VARIANT_CALL.out.final_vcf.combine(db_ch))
+
     VARIANT_CALL.out.final_vcf.map{it-> it[1]}.flatten().collectFile(storeDir:vcf_dir)
+    ANNOTATE_VCF.out.csv.map{it-> it[1]}.flatten().collectFile(storeDir:vcf_dir)
 }
 
 workflow annotate{
@@ -75,7 +76,7 @@ workflow snp{
     SNP_CALL(mutant_ch,params.data_dir)
     ANNOTATE_VCF(SNP_CALL.out.vcf.combine(db_ch))
     
-    def vcf_dir = "${params.data_dir}/out_vcf"
+    def vcf_dir = "${params.data_dir}/out_vcf/bcf"
     file(vcf_dir).mkdir()
 
     SNP_CALL.out.vcf.map{it-> it[1]}.flatten().collectFile(storeDir:vcf_dir)

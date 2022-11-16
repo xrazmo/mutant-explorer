@@ -19,6 +19,9 @@ def parse_vcf(sample,refdb,vcf):
         r["alt_nt"] = row["ALT"]
         r["filter"] = row["FILTER"]
         tmp_lst.append(r)
+    
+    if len(tmp_lst)>1:
+        tmp_lst = tmp_lst[1:]
 
     df = pd.DataFrame(tmp_lst)
     sname = os.path.basename(vcf).split('.')[0]
@@ -68,13 +71,13 @@ def __locate_muation(id,orfs,pos):
         if orf["strand"] == '+':
             if orf["sidx"]<= pos and orf["eidx"]>= pos: # CDS
                 type = 'coding_region'
-            elif orf["sidx"]-100<= pos and  orf["sidx"]> pos: # promoter     
+            elif orf["sidx"]-200<= pos and  orf["sidx"]> pos: # promoter     
                 type = 'promoter'
             ge_pos = pos - orf["sidx"] + 1  
         else:
             if orf["sidx"]<= pos and orf["eidx"]>= pos: # CDS
                 type = 'coding_region'
-            elif orf["eidx"]+100 >= pos and  orf["eidx"]< pos: # promoter     
+            elif orf["eidx"]+200 >= pos and  orf["eidx"]< pos: # promoter     
                 type = 'promoter' 
             
             ge_pos = orf["eidx"]-pos + 1 
@@ -108,7 +111,7 @@ def main(argv):
 
 if __name__ == '__main__':
     main(sys.argv[1:])
-    # os.chdir("/crex/proj/snic2022-23-507/private/mutant/ref_dbs/out_vcf/")
-    # df = pd.read_csv("../input_mutants_test.csv",header=0)
+    # os.chdir("/crex/proj/snic2022-23-507/private/mutant/ref_dbs/cryptic_contigs/out_vcf")
+    # df = pd.read_csv("/crex/proj/snic2022-23-507/private/mutant/ref_dbs/input_mutants.csv",header=0)
     # for _,row in df.iterrows():
-    #     parse_vcf(row["parent"],"../db.sqlite3",f"{row['child']}.vcf")
+    #     parse_vcf(row["parent"],"/crex/proj/snic2022-23-507/private/mutant/ref_dbs/db.sqlite3",f"{row['child']}.final.vcf")

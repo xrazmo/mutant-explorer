@@ -1,4 +1,4 @@
-import  re
+import re
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -31,7 +31,7 @@ class gemucator(object):
         # remember the name of the genbank file for use in assert statements later
         self.genbank_file=genbank_file
 
-        # self.version=self.genome.annotations['accessions'][0]+"."+str(self.genome.annotations['sequence_version'])
+        self.version=self.genome.annotations['accessions'][0]+"."+str(self.genome.annotations['sequence_version'])
 
     def locate_mutation(self,mutation,nucleotide_mutation=False):
 
@@ -424,7 +424,7 @@ class gemucator(object):
 
         assert int(location)<len(self.genome), "genome position has to be less than the size of the genome...!"
 
-        residue,gene_name,ref_base,alt_residue,product = None,None,None,None,None
+        residue,gene_name,ref_base,alt_residue,product,prot_id = None,None,None,None,None,None
         # now that we know what we are looking for, iterate through all the features in the genomes
         for record in self.genome.features:
 
@@ -437,6 +437,7 @@ class gemucator(object):
                 start=record.location.start.position
                 end=record.location.end.position
                 strand=record.location.strand.real
+
                 # regular strand
                 if strand==1:
 
@@ -450,15 +451,17 @@ class gemucator(object):
 
                         # find out the gene_name
                         if 'gene' in record.qualifiers.keys():
-                            gene_name = record.qualifiers['gene'][0]
+                            gene_name=record.qualifiers['gene'][0]
                         elif 'locus_tag' in record.qualifiers.keys():
-                            gene_name = record.qualifiers['locus_tag'][0]
+                            gene_name=record.qualifiers['locus_tag'][0]
                         else:
                             gene_name=None
-
+                        
                         if 'product' in record.qualifiers.keys():
-                            product = record.qualifiers['product'][0]
-
+                            product=record.qualifiers['product'][0]
+                        
+                        if 'protein_id' in record.qualifiers.keys():
+                            prot_id=record.qualifiers['protein_id'][0]
                         # if we are in the CDS
                         if location>start:
 
@@ -504,7 +507,10 @@ class gemucator(object):
                             gene_name=None
 
                         if 'product' in record.qualifiers.keys():
-                            product = record.qualifiers['product'][0]
+                            product=record.qualifiers['product'][0]
+                        
+                        if 'protein_id' in record.qualifiers.keys():
+                            prot_id=record.qualifiers['protein_id'][0]
 
                         if location<end:
 
@@ -530,10 +536,13 @@ class gemucator(object):
 
 
                 if found_gene:
-                    return{"gene_name":gene_name,'product':product,"gene_pos":position,
-                            "ref_residue":residue,
-                            "alt_residue":alt_residue,
-                            "ref_base":ref_base,
+                    return{"gene_name":gene_name,
+                            "product":product,
+                            "protein_id":prot_id,
+                            "pos_gene":position,
+                            "ref_aa":residue,
+                            "alt_aa":alt_residue,
+                            "ref_nt2":ref_base,
                             "strand":strand}
 
         return {}

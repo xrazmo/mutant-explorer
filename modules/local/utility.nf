@@ -78,6 +78,20 @@ process ANNOTATE_VCF{
     python $baseDir/bin/vcf_parser.py --parent ${meta.parent} --database $db --vcf $vcf
     """
 }
+process ANNOTATE_VCF_GBK{
+    tag "$meta.id"
+
+    input:
+    tuple val(meta), path(vcf), path(gbk)
+
+    output:
+    tuple val(meta), path("*.csv"), emit: csv
+
+    script:
+    """
+    python $baseDir/bin/vcf_parser_gbk.py --genbank $gbk --vcf $vcf
+    """
+}
 
 process MERGE_GENES{
     tag "merge-genes"

@@ -9,6 +9,7 @@ include {VARIANT_CALL} from "$baseDir/modules/local/cryptic"
 include {SNP_CALL} from "$baseDir/modules/local/snp_calling"
 include {MMSEQS_CLUSTERNT} from "$baseDir/modules/local/mmseqs"
 include {ANNOTATE_VCF} from "$baseDir/modules/local/utility"
+include {ANNOTATE_VCF_GBK} from "$baseDir/modules/local/utility"
 include {MERGE_GENES} from "$baseDir/modules/local/utility"
 include {SAVE_CLUSTERS} from "$baseDir/modules/local/utility"
 
@@ -57,7 +58,7 @@ workflow cryptic_snp{
 
 workflow cryptic_snp_single_ref{
 
-    db_ch = Channel.fromPath("${params.data_dir}/db.sqlite3")
+    gbk = Channel.fromPath("${params.data_dir}/ref_fa/*.gbk")
     def reffa_dir = "${params.data_dir}/ref_fa"
     def vcf_dir = "${params.data_dir}/out_vcf/cryptic_CP009072"
     file(vcf_dir).mkdir()
@@ -71,12 +72,12 @@ workflow cryptic_snp_single_ref{
     FAKE_REMOVE_CONTAM(mutant_ch)
     
     decomp_ch = FAKE_REMOVE_CONTAM.out.reads.combine(ref_dir_ch)
-    decomp_ch.view()
+   
     VARIANT_CALL(decomp_ch)
-    // ANNOTATE_VCF(VARIANT_CALL.out.final_vcf.combine(db_ch))
+    ANNOTATE_VCF_GBK(VARIANT_CALL.out.final_vcf.combine(gbk))
 
     VARIANT_CALL.out.final_vcf.map{it-> it[1]}.flatten().collectFile(storeDir:vcf_dir)
-    // ANNOTATE_VCF.out.csv.map{it-> it[1]}.flatten().collectFile(storeDir:vcf_dir)
+    ANNOTATE_VCF_GBK.out.csv.map{it-> it[1]}.flatten().collectFile(storeDir:vcf_dir)
 }
 
 workflow annotate{

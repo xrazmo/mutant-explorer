@@ -13,6 +13,9 @@ include {ANNOTATE_VCF_GBK} from "$baseDir/modules/local/utility"
 include {MERGE_GENES} from "$baseDir/modules/local/utility"
 include {SAVE_CLUSTERS} from "$baseDir/modules/local/utility"
 
+include { DIAMOND_BLASTX } from "$baseDir/modules/nf-core/diamond/blastx/main"
+include { DIAMOND_BLASTP } from "$baseDir/modules/nf-core/diamond/blastp/main"
+include { DIAMOND_MAKEDB } from "$baseDir/modules/nf-core/diamond/makedb/main"
 
 params.data_dir = ""
 params.mutant_csv = ""
@@ -107,4 +110,42 @@ workflow snp{
 
     SNP_CALL.out.vcf.map{it-> it[1]}.flatten().collectFile(storeDir:vcf_dir)
     ANNOTATE_VCF.out.csv.map{it-> it[1]}.flatten().collectFile(storeDir:vcf_dir)
+}
+
+workflow annot_insert{
+    def vcf_dir = "${params.data_dir}/out_vcf/cryptic_CP009072/rename"
+    fa_ch = Channel.fromPath("${vcf_dir}/*_insertion.fa").map{it->[[id:it.simpleName],it]}
+
+    def diamond_cols = "qseqid sseqid pident qcovhsp scovhsp mismatch gaps evalue bitscore length qlen slen qstart qend sstart send stitle"
+    dmnd_ch = Channel.fromPath("${params.data_dir}/dmnd/nr.dmnd")
+    fa_ch.combine(dmnd_ch).combine(Channel.from('txt')).combine(Channel.from(tuple(diamond_cols)))
+                    .map{it -> [[id:it[0].id+"__"+it[2].simpleName],it[1],it[2],it[3],it[4]]}
+                    .multiMap {it -> fasta: tuple(it[0],it[1])
+                                    db: it[2]
+                                    ext: it[3]
+                                    col: it[4]}
+                    .set{diaParam}
+    DIAMOND_BLASTX(diaParam.fasta,diaParam.db,diaParam.ext,diaParam.col)
+    DIAMOND_BLASTX.out.txt.map{it-> it[1]}.flatten().collectFile(storeDir:vcf_dir)
+}
+workflow annot_reference{
+
+    // def db_path = "/crex/proj/snic2022-23-507/nobackup/databases/uniprotkb"
+    // fa_ch= Channel.fromPath("${db_path}/*.fasta")
+    // DIAMOND_MAKEDB(fa_ch)
+    // DIAMOND_MAKEDB.out.db.flatten().collectFile(storeDir:db_path)
+
+    def rt = "${params.data_dir}/ref_fa"
+    fa_ch = Channel.fromPath("${rt}/*.faa").map{it->[[id:it.simpleName],it]}
+    dmnd_ch = Channel.fromPath("${params.data_dir}/dmnd/uniprot_sprot.dmnd")
+    def diamond_cols = "qseqid sseqid pident qcovhsp scovhsp mismatch gaps evalue bitscore length qlen slen qstart qend sstart send stitle"
+    fa_ch.combine(dmnd_ch).combine(Channel.from('txt')).combine(Channel.from(tuple(diamond_cols)))
+                    .map{it -> [[id:it[0].id+"__"+it[2].simpleName],it[1],it[2],it[3],it[4]]}
+                    .multiMap {it -> fasta: tuple(it[0],it[1])
+                                    db: it[2]
+                                    ext: it[3]
+                                    col: it[4]}
+                    .set{diaParam}
+    DIAMOND_BLASTP(diaParam.fasta,diaParam.db,diaParam.ext,diaParam.col)
+    DIAMOND_BLASTP.out.txt.map{it-> it[1]}.flatten().collectFile(storeDir:rt)
 }
